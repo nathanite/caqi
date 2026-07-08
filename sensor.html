@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sensor detail</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <svg class="brand-trace" viewBox="0 0 108 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <polyline points="0,14 14,14 20,4 27,17 34,9 41,14 108,14" stroke="#2f5db3" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <span class="brand-mark">Neighborhood Air</span>
+  </div>
+  <nav><a href="index.html">&larr; map</a></nav>
+</div>
+
+<div class="detail-wrap">
+  <a class="back-link" href="index.html">&larr; back to map</a>
+
+  <div class="detail-header">
+    <h1 class="owner" id="owner-label">Loading…</h1>
+    <div class="sub" id="updated-sub"></div>
+  </div>
+
+  <div class="now-row" id="now-row"></div>
+
+  <div class="panel">
+    <h2>Air quality — last 10 hours</h2>
+    <canvas id="aqiChart"></canvas>
+  </div>
+
+  <div class="panel">
+    <h2>Temperature — last 10 hours</h2>
+    <canvas id="tempChart"></canvas>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="config.js"></script>
+<script src="aqi-helpers.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const sensorId = params.get("id");
+
+async function supaGet(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+function renderNowRow(latest) {
+  const cat = aqiCategory(latest.aqi);
+  document.getElementById("now-row").innerHTML = `
+    <div class="now-card aqi">
+      <div class="label">AQI</div>
+      <div class="value"><span class="swatch" style="background:${resolveCssVar(cat.bg)}"></span>${latest.aqi} · ${cat.name}</div>
+    </div>
+    <div class="now-card">
+      <div class="label">Temp</div>
+      <div class="value">${latest.temperature.toFixed(1)}°F</div>
+    </div>
+    <div class="now-card">
+      <div class="label">PM2.5</div>
+      <div class="value">${latest.pm25.toFixed(1)}</div>
+    </div>
+    <div class="now-card">
+      <div class="label">PM10</div>
+      <div class="value">${latest.pm10.toFixed(1)}</div>
+    </div>`;
+}
+
+function buildChart(ctx, datasets, yLabel) {
+  return new Chart(ctx, {
+    type: "line",
+    data: { datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: "index", intersect: false },
+      scales: {
+        x: {
+          type: "time",
+          time: { unit: "hour" },
+          grid: { color: "#e4e8e4" },
+        },
+        y: {
+          title: { display: true, text: yLabel },
+          grid: { color: "#e4e8e4" },
+        },
+      },
+      plugins: { legend: { position: "bottom" } },
+    },
+  });
+}
+
+async function init() {
+  if (!sensorId) {
+    document.getElementById("owner-label").textContent = "No sensor selected";
+    return;
+  }
+
+  try {
+    const [sensors, latestRows, history] = await Promise.all([
+      supaGet(`sensors?id=eq.${encodeURIComponent(sensorId)}&select=owner_label`),
+      supaGet(`latest_readings?sensor_id=eq.${encodeURIComponent(sensorId)}&select=*`),
+      supaGet(
+        `readings?sensor_id=eq.${encodeURIComponent(sensorId)}` +
+        `&created_at=gte.${encodeURIComponent(new Date(Date.now() - 10 * 3600 * 1000).toISOString())}` +
+        `&order=created_at.asc&select=*`
+      ),
+    ]);
+
+    const ownerLabel = sensors[0]?.owner_label || "Unknown sensor";
+    document.title = `${ownerLabel} — Neighborhood Air`;
+    document.getElementById("owner-label").textContent = ownerLabel;
+
+    if (latestRows[0]) {
+      renderNowRow(latestRows[0]);
+      document.getElementById("updated-sub").textContent =
+        `updated ${fmtTime(latestRows[0].created_at)} · ${minutesAgo(latestRows[0].created_at)} min ago`;
+    }
+
+    if (!history.length) {
+      document.getElementById("aqiChart").outerHTML = '<div class="empty-state">No readings in the last 10 hours yet.</div>';
+      document.getElementById("tempChart").outerHTML = '<div class="empty-state">No readings in the last 10 hours yet.</div>';
+      return;
+    }
+
+    const points = (key) => history.map((r) => ({ x: r.created_at, y: r[key] }));
+
+    buildChart(document.getElementById("aqiChart"), [
+      { label: "AQI", data: points("aqi"), borderColor: "#2f5db3", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
+      { label: "PM2.5 (µg/m³)", data: points("pm25"), borderColor: "#059669", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
+      { label: "PM10 (µg/m³)", data: points("pm10"), borderColor: "#ff7e00", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
+    ], "value");
+
+    buildChart(document.getElementById("tempChart"), [
+      { label: "Temperature (°F)", data: points("temperature"), borderColor: "#7e0023", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
+    ], "°F");
+  } catch (err) {
+    console.error(err);
+    document.getElementById("owner-label").textContent = "Couldn't load sensor data";
+  }
+}
+
+init();
+</script>
+</body>
+</html>

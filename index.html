@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Neighborhood Air — live AQI map</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <svg class="brand-trace" viewBox="0 0 108 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <polyline points="0,14 14,14 20,4 27,17 34,9 41,14 108,14" stroke="#2f5db3" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+    <span class="brand-mark">Neighborhood Air</span>
+  </div>
+  <div class="tagline">live PM2.5 / PM10 readings, EPA AQI scale</div>
+</div>
+
+<div id="map"></div>
+
+<div class="legend">
+  <div class="legend-row"><span class="legend-dot" style="background:var(--aqi-good-bg)"></span> Good 0–50</div>
+  <div class="legend-row"><span class="legend-dot" style="background:var(--aqi-moderate-bg)"></span> Moderate 51–100</div>
+  <div class="legend-row"><span class="legend-dot" style="background:var(--aqi-usg-bg)"></span> USG 101–150</div>
+  <div class="legend-row"><span class="legend-dot" style="background:var(--aqi-unhealthy-bg)"></span> Unhealthy 151–200</div>
+  <div class="legend-row"><span class="legend-dot" style="background:var(--aqi-very-unhealthy-bg)"></span> Very Unhealthy 201–300</div>
+  <div class="legend-row"><span class="legend-dot" style="background:var(--aqi-hazardous-bg)"></span> Hazardous 301+</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="config.js"></script>
+<script src="aqi-helpers.js"></script>
+<script>
+const REFRESH_MS = 60000; // re-poll every 60s
+
+const map = L.map("map", { zoomControl: true }).setView([37.9, -122.05], 12);
+L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  {
+    attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+    maxZoom: 19,
+  }
+).addTo(map);
+
+// optional place-name / road overlay on top of the satellite imagery, so street context is still readable without losing the aerial view
+L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 19, opacity: 0.9 }
+).addTo(map);
+
+let markers = {}; // sensor_id -> L.marker
+let firstLoad = true;
+
+function markerHtml(aqi) {
+  const cat = aqiCategory(aqi);
+  return `<div class="aqi-marker" style="background:${resolveCssVar(cat.bg)}; color:${resolveCssVar(cat.bg)}">
+            <span style="color:${cat.fg}">${aqi}</span>
+          </div>`;
+}
+
+function popupHtml(row) {
+  const cat = aqiCategory(row.aqi);
+  const stale = minutesAgo(row.created_at) > 30
+    ? `<div class="stale">last update ${minutesAgo(row.created_at)} min ago</div>` : "";
+  return `
+    <div class="popup">
+      <h3>${row.owner_label}</h3>
+      <span class="cat" style="background:${resolveCssVar(cat.bg)}">${cat.name}</span>
+      <dl>
+        <dt>Temp</dt><dd>${row.temperature.toFixed(1)} °F</dd>
+        <dt>PM2.5</dt><dd>${row.pm25.toFixed(1)} µg/m³</dd>
+        <dt>PM10</dt><dd>${row.pm10.toFixed(1)} µg/m³</dd>
+        <dt>Updated</dt><dd>${fmtTime(row.created_at)}</dd>
+      </dl>
+      ${stale}
+      <a class="see-more" href="sensor.html?id=${encodeURIComponent(row.sensor_id)}">See more &gt;&gt;</a>
+    </div>`;
+}
+
+async function loadSensors() {
+  const url = `${SUPABASE_URL}/rest/v1/latest_readings?select=*`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+  if (!res.ok) {
+    console.error("Failed", res.status, await res.text());
+    return;
+  }
+  const rows = await res.json();
+
+  const bounds = [];
+  rows.forEach((row) => {
+    bounds.push([row.latitude, row.longitude]);
+    const icon = L.divIcon({
+      className: "",
+      html: markerHtml(row.aqi),
+      iconSize: [44, 44],
+      popupAnchor: [0, -18],
+    });
+
+    if (markers[row.sensor_id]) {
+      markers[row.sensor_id].setIcon(icon);
+      markers[row.sensor_id].setPopupContent(popupHtml(row));
+    } else {
+      const m = L.marker([row.latitude, row.longitude], { icon }).addTo(map);
+      m.bindPopup(popupHtml(row));
+      markers[row.sensor_id] = m;
+    }
+  });
+
+  if (firstLoad && bounds.length) {
+    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+    firstLoad = false;
+  }
+}
+
+loadSensors();
+setInterval(loadSensors, REFRESH_MS);
+</script>
+</body>
+</html>
