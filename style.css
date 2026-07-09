@@ -110,8 +110,8 @@ a { color: var(--accent); }
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: 33px;
+  height: 33px;
   border-radius: 50%;
   border: 2px solid rgba(255,255,255,0.85);
   box-shadow: 0 2px 8px rgba(0,0,0,0.28);
@@ -125,7 +125,7 @@ a { color: var(--accent); }
   content: "";
   position: absolute;
   inset: -6px;
-  border-radius: 50%;
+  border-radius: 25%;
   border: 1.5px solid currentColor;
   opacity: 0;
   animation: pulse 3.2s ease-out infinite;
