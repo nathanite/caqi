@@ -123,7 +123,7 @@ async function init() {
     ]);
 
     const ownerLabel = sensors[0]?.owner_label || "Unknown sensor";
-    document.title = `${ownerLabel} — Neighborhood Air`;
+    document.title = `${ownerLabel}`;
     document.getElementById("owner-label").textContent = ownerLabel;
 
     if (latestRows[0]) {
