@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Neighborhood Air — live AQI map</title>
+<title>Cali Air Quality</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -17,9 +17,9 @@
     <svg class="brand-trace" viewBox="0 0 108 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <polyline points="0,14 14,14 20,4 27,17 34,9 41,14 108,14" stroke="#2f5db3" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
     </svg>
-    <span class="brand-mark">Neighborhood Air</span>
+    <span class="brand-mark">Cali AQI</span>
   </div>
-  <div class="tagline">live PM2.5 / PM10 readings, EPA AQI scale</div>
+  <div class="tagline">PM2.5 / PM10 readings on AQI scale</div>
 </div>
 
 <div id="map"></div>
@@ -37,7 +37,7 @@
 <script src="config.js"></script>
 <script src="aqi-helpers.js"></script>
 <script>
-const REFRESH_MS = 60000; // re-poll every 60s
+const REFRESH_MS = 30000; // re-poll every 60s
 
 const map = L.map("map", { zoomControl: true }).setView([37.9, -122.05], 12);
 L.tileLayer(
