@@ -51,21 +51,22 @@ a { color: var(--accent); }
 
 .brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
 }
-
+ 
 .brand-mark {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.35rem;
   letter-spacing: -0.01em;
 }
-
+ 
 .brand-trace {
   display: block;
-  width: 108px;
-  height: 20px;
+  width: 27px;
+  height: 31px;
+  flex: none;
 }
 
 .tagline {
