@@ -1,2 +1,2 @@
-const SUPABASE_URL = "https://rydzqmivqmbomhbzprtl.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ5ZHpxbWl2cW1ib21oYnpwcnRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0NTczOTIsImV4cCI6MjA5OTAzMzM5Mn0.E0M2Ta4yPfjT8_vryAq28VWiJj9BQP5zCuT3Df3JbWM";
+const SUPABASE_URL = "__SUPABASE_URL__";
+const SUPABASE_ANON_KEY = "__SUPABASE_ANON_KEY__";
