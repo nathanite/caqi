@@ -48,7 +48,6 @@ L.tileLayer(
   }
 ).addTo(map);
 
-// optional place-name / road overlay on top of the satellite imagery, so street context is still readable without losing the aerial view
 L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
   { maxZoom: 19, opacity: 0.9 }
