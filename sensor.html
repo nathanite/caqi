@@ -142,7 +142,9 @@ async function init() {
     const points = (key) => history.map((r) => ({ x: r.created_at, y: r[key] }));
 
     buildChart(document.getElementById("aqiChart"), [
-      { label: "AQI", data: points("aqi"), borderColor: "#2f5db3", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 }
+      { label: "AQI", data: points("aqi"), borderColor: "#2f5db3", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
+      { label: "PM2.5 (µg/m³)", data: points("pm25"), borderColor: "#059669", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
+      { label: "PM10 (µg/m³)", data: points("pm10"), borderColor: "#ff7e00", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 }
     ], "value");
 
     buildChart(document.getElementById("tempChart"), [
