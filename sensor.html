@@ -118,7 +118,7 @@ async function init() {
       supaGet(`latest_readings?sensor_id=eq.${encodeURIComponent(sensorId)}&select=*`),
       supaGet(
         `readings?sensor_id=eq.${encodeURIComponent(sensorId)}` +
-        `&created_at=gte.${encodeURIComponent(new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString())}` +
+        `&created_at=gte.${encodeURIComponent(new Date(Date.now() - 24 * 3600 * 1000).toISOString())}` +
         `&order=created_at.asc&select=*`
       ),
     ]);
