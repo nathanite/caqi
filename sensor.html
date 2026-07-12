@@ -33,12 +33,12 @@
   <div class="now-row" id="now-row"></div>
 
   <div class="panel">
-    <h2>Air quality - last 10 hours</h2>
+    <h2>Air quality - last 7 days</h2>
     <canvas id="aqiChart"></canvas>
   </div>
 
   <div class="panel">
-    <h2>Temperature - last 10 hours</h2>
+    <h2>Temperature - last 7 days</h2>
     <canvas id="tempChart"></canvas>
   </div>
 </div>
@@ -93,7 +93,7 @@ function buildChart(ctx, datasets, yLabel) {
       scales: {
         x: {
           type: "time",
-          time: { unit: "hour" },
+          time: { unit: "day" },
           grid: { color: "#e4e8e4" },
         },
         y: {
@@ -118,7 +118,7 @@ async function init() {
       supaGet(`latest_readings?sensor_id=eq.${encodeURIComponent(sensorId)}&select=*`),
       supaGet(
         `readings?sensor_id=eq.${encodeURIComponent(sensorId)}` +
-        `&created_at=gte.${encodeURIComponent(new Date(Date.now() - 10 * 3600 * 1000).toISOString())}` +
+        `&created_at=gte.${encodeURIComponent(new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString())}` +
         `&order=created_at.asc&select=*`
       ),
     ]);
@@ -134,17 +134,15 @@ async function init() {
     }
 
     if (!history.length) {
-      document.getElementById("aqiChart").outerHTML = '<div class="empty-state">No readings in the last 10 hours yet.</div>';
-      document.getElementById("tempChart").outerHTML = '<div class="empty-state">No readings in the last 10 hours yet.</div>';
+      document.getElementById("aqiChart").outerHTML = '<div class="empty-state">No readings in the last 7 days yet.</div>';
+      document.getElementById("tempChart").outerHTML = '<div class="empty-state">No readings in the last 7 days yet.</div>';
       return;
     }
 
     const points = (key) => history.map((r) => ({ x: r.created_at, y: r[key] }));
 
     buildChart(document.getElementById("aqiChart"), [
-      { label: "AQI", data: points("aqi"), borderColor: "#2f5db3", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
-      { label: "PM2.5 (µg/m³)", data: points("pm25"), borderColor: "#059669", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
-      { label: "PM10 (µg/m³)", data: points("pm10"), borderColor: "#ff7e00", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
+      { label: "AQI", data: points("aqi"), borderColor: "#2f5db3", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 }
     ], "value");
 
     buildChart(document.getElementById("tempChart"), [
