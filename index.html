@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cali Air Quality</title>
 <link rel="icon" type="image/svg+xml" href="icon.svg" />
+<script>
+  (function () {
+    var stored = null;
+    try { stored = localStorage.getItem("theme"); } catch (e) {}
+    var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", stored || (prefersDark ? "dark" : "light"));
+  })();
+</script>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -20,7 +28,10 @@
     </svg>
     <span class="brand-mark">Cali AQI</span>
   </div>
-  <div class="tagline">PM2.5 / PM10 readings on AQI scale</div>
+  <div class="topbar-right">
+    <div class="tagline">live PM2.5 / PM10 readings, EPA AQI scale</div>
+    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode">🌙</button>
+  </div>
 </div>
 
 <div id="map"></div>
@@ -57,6 +68,46 @@ L.tileLayer(
 let markers = {}; // sensor_id -> L.marker
 let firstLoad = true;
 
+const markersLayer = L.layerGroup().addTo(map);
+const overlayLayer = L.layerGroup();
+let overlayCircles = {}; // sensor_id -> array of L.circle
+let viewMode = "sensors";
+ 
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById("view-sensors").classList.toggle("active", mode === "sensors");
+  document.getElementById("view-overlay").classList.toggle("active", mode === "overlay");
+  if (mode === "sensors") {
+    map.addLayer(markersLayer);
+    map.removeLayer(overlayLayer);
+  } else {
+    map.addLayer(overlayLayer);
+    map.removeLayer(markersLayer);
+  }
+}
+function drawOverlay(row) {
+  if (overlayCircles[row.sensor_id]) {
+    overlayCircles[row.sensor_id].forEach((c) => overlayLayer.removeLayer(c));
+  }
+  const cat = aqiCategory(row.aqi);
+  const color = resolveCssVar(cat.bg);
+  const rings = [
+    { radius: 6000, opacity: 0.06 },
+    { radius: 4200, opacity: 0.11 },
+    { radius: 2600, opacity: 0.17 },
+    { radius: 1300, opacity: 0.26 },
+  ];
+  overlayCircles[row.sensor_id] = rings.map((ring) =>
+    L.circle([row.latitude, row.longitude], {
+      radius: ring.radius,
+      fillColor: color,
+      fillOpacity: ring.opacity,
+      stroke: false,
+      interactive: false,
+    }).addTo(overlayLayer)
+  );
+}
+  
 function markerHtml(aqi) {
   const cat = aqiCategory(aqi);
   return `<div class="aqi-marker" style="background:${resolveCssVar(cat.bg)}; color:${resolveCssVar(cat.bg)}">
@@ -83,44 +134,51 @@ function popupHtml(row) {
     </div>`;
 }
 
-async function loadSensors() {
-  const url = `${SUPABASE_URL}/rest/v1/latest_readings?select=*`;
-  const res = await fetch(url, {
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-    },
-  });
-  if (!res.ok) {
-    console.error("Failed", res.status, await res.text());
-    return;
+const markersLayer = L.layerGroup().addTo(map);
+const overlayLayer = L.layerGroup();
+let overlayCircles = {}; // sensor_id -> array of L.circle
+let viewMode = "sensors";
+ 
+function setViewMode(mode) {
+  viewMode = mode;
+  document.getElementById("view-sensors").classList.toggle("active", mode === "sensors");
+  document.getElementById("view-overlay").classList.toggle("active", mode === "overlay");
+  if (mode === "sensors") {
+    map.addLayer(markersLayer);
+    map.removeLayer(overlayLayer);
+  } else {
+    map.addLayer(overlayLayer);
+    map.removeLayer(markersLayer);
   }
-  const rows = await res.json();
-
-  const bounds = [];
-  rows.forEach((row) => {
-    bounds.push([row.latitude, row.longitude]);
-    const icon = L.divIcon({
-      className: "",
-      html: markerHtml(row.aqi),
-      iconSize: [44, 44],
-      popupAnchor: [0, -18],
-    });
-
-    if (markers[row.sensor_id]) {
-      markers[row.sensor_id].setIcon(icon);
-      markers[row.sensor_id].setPopupContent(popupHtml(row));
-    } else {
-      const m = L.marker([row.latitude, row.longitude], { icon }).addTo(map);
-      m.bindPopup(popupHtml(row));
-      markers[row.sensor_id] = m;
-    }
-  });
-
-  if (firstLoad && bounds.length) {
-    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
-    firstLoad = false;
+}
+ 
+// Draws a soft "glow" at a sensor's location using several stacked,
+// translucent circles (denser/smaller near the center, fainter/larger
+// toward the edge). This is a rough visual stand-in for regional air
+// quality, not a scientific interpolation between sensors -- it shows
+// "near this sensor, conditions are roughly X" rather than a modeled
+// estimate for areas between sensors.
+function drawOverlay(row) {
+  if (overlayCircles[row.sensor_id]) {
+    overlayCircles[row.sensor_id].forEach((c) => overlayLayer.removeLayer(c));
   }
+  const cat = aqiCategory(row.aqi);
+  const color = resolveCssVar(cat.bg);
+  const rings = [
+    { radius: 6000, opacity: 0.06 },
+    { radius: 4200, opacity: 0.11 },
+    { radius: 2600, opacity: 0.17 },
+    { radius: 1300, opacity: 0.26 },
+  ];
+  overlayCircles[row.sensor_id] = rings.map((ring) =>
+    L.circle([row.latitude, row.longitude], {
+      radius: ring.radius,
+      fillColor: color,
+      fillOpacity: ring.opacity,
+      stroke: false,
+      interactive: false,
+    }).addTo(overlayLayer)
+  );
 }
 
 loadSensors();
