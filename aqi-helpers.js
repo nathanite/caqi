@@ -25,3 +25,64 @@ function fmtTime(iso) {
 function minutesAgo(iso) {
   return Math.round((Date.now() - new Date(iso).getTime()) / 60000);
 }
+function toggleTheme() {
+  const root = document.documentElement;
+  const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  root.setAttribute("data-theme", next);
+  try {
+    localStorage.setItem("theme", next);
+  } catch (e) {
+  }
+  updateThemeToggleIcon();
+}
+function updateThemeToggleIcon() {
+  const btn = document.querySelector(".theme-toggle");
+  if (!btn) return;
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  btn.textContent = isDark ? "☀️" : "🌙";
+  btn.setAttribute("aria-label", isDark ? "Switch to light mode" : "Switch to dark mode");
+}
+
+document.addEventListener("DOMContentLoaded", updateThemeToggleIcon);
+
+function trendVsYesterday(history, key, currentValue, maxWindowHours = 3) {
+  if (!history || !history.length) return null;
+  const targetTime = Date.now() - 24 * 3600 * 1000;
+  let best = null;
+  let bestDiffMs = Infinity;
+  for (const row of history) {
+    const t = new Date(row.created_at).getTime();
+    const diff = Math.abs(t - targetTime);
+    if (diff < bestDiffMs) {
+      bestDiffMs = diff;
+      best = row;
+    }
+  }
+  if (!best || bestDiffMs > maxWindowHours * 3600 * 1000) return null;
+
+  const pastValue = best[key];
+  const delta = currentValue - pastValue;
+  return { delta, pastValue };
+}
+function trendHtml(delta, unit, polarity, flatThreshold) {
+  if (delta === null || delta === undefined || Number.isNaN(delta)) return "";
+
+  const rounded = Math.round(Math.abs(delta) * 10) / 10;
+  let arrow, cls;
+
+  if (Math.abs(delta) < flatThreshold) {
+    arrow = "→";
+    cls = "flat";
+  } else if (delta > 0) {
+    arrow = "↑";
+    cls = polarity === "bad-up" ? "up" : "neutral-up";
+  } else {
+    arrow = "↓";
+    cls = polarity === "bad-up" ? "down" : "neutral-down";
+  }
+
+  const sign = delta > 0 ? "+" : delta < 0 ? "\u2212" : "\u00B1";
+  const magnitude = Math.abs(delta) < flatThreshold ? "0" : rounded;
+
+  return `<span class="trend ${cls}"><span class="arrow">${arrow}</span>${sign}${magnitude}${unit} <span class="vs-label">vs 24h ago</span></span>`;
+}
