@@ -3,9 +3,18 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Cali Air Quality</title>
-<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<title>Neighborhood Air — live AQI map</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <script>
+  // If someone lands directly on /index.html (typed URL, old bookmark),
+  // silently tidy the address bar to the clean root URL -- no reload,
+  // no redirect, just fixes what's displayed.
+  if (location.pathname.endsWith("/index.html")) {
+    history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
+  }
+</script>
+<script>
+  // Applied before CSS loads so there's no flash of the wrong theme.
   (function () {
     var stored = null;
     try { stored = localStorage.getItem("theme"); } catch (e) {}
@@ -26,7 +35,7 @@
     <svg class="brand-trace" viewBox="0 0 345.2 400" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <path d="M39.6,0.2 L68.3,0.0 L113.3,0.7 L148.1,0.7 L148.3,73.8 L148.1,127.2 L191.3,165.1 L232.2,202.3 L264.4,232.6 L287.6,255.0 L328.4,296.0 L328.4,301.3 L333.9,308.2 L338.5,319.3 L345.2,325.3 L341.1,330.9 L335.8,333.6 L331.7,341.0 L333.0,351.0 L332.1,357.2 L325.3,363.2 L327.5,379.0 L332.1,379.2 L333.9,387.1 L332.1,390.8 L325.5,392.4 L280.9,396.3 L244.7,400.0 L240.7,394.5 L240.5,385.7 L237.9,375.3 L233.1,367.9 L222.6,357.7 L209.2,348.2 L206.6,350.8 L201.5,349.1 L202.2,345.0 L196.3,336.4 L188.4,338.3 L174.4,332.0 L172.4,326.9 L163.0,320.7 L152.3,320.9 L143.5,318.2 L132.3,319.3 L126.4,313.8 L127.7,302.0 L125.7,300.1 L127.0,291.8 L118.1,285.5 L117.8,277.0 L114.4,276.5 L108.9,269.1 L105.1,267.5 L103.4,262.9 L90.5,245.5 L84.5,240.5 L83.2,226.8 L85.7,228.0 L88.1,219.9 L83.3,212.5 L77.5,213.4 L69.7,206.7 L67.0,201.4 L67.5,196.3 L63.7,189.6 L63.7,178.5 L69.9,178.5 L67.3,163.0 L64.6,164.6 L64.0,172.3 L57.4,173.9 L49.5,168.1 L48.2,158.2 L43.1,150.3 L36.2,145.4 L32.6,139.9 L22.6,129.0 L24.3,125.8 L19.7,111.7 L21.7,103.8 L18.8,92.0 L10.1,80.5 L1.7,74.0 L0.0,66.4 L8.5,47.9 L10.1,41.6 L8.5,36.8 L11.6,24.0 L8.8,12.5 L5.2,9.7 L6.6,0.5 L39.6,0.2 Z" fill="#2f5db3"/>
     </svg>
-    <span class="brand-mark">Cali AQI</span>
+    <span class="brand-mark">Neighborhood Air</span>
   </div>
   <div class="topbar-right">
     <div class="tagline">live PM2.5 / PM10 readings, EPA AQI scale</div>
@@ -35,6 +44,11 @@
 </div>
 
 <div id="map"></div>
+
+<div class="view-toggle">
+  <button id="view-sensors" class="active" onclick="setViewMode('sensors')">Sensors</button>
+  <button id="view-overlay" onclick="setViewMode('overlay')">Air Quality</button>
+</div>
 
 <div class="legend">
   <div class="legend-row"><span class="legend-dot" style="background:var(--aqi-good-bg)"></span> Good 0–50</div>
@@ -49,7 +63,7 @@
 <script src="config.js"></script>
 <script src="aqi-helpers.js"></script>
 <script>
-const REFRESH_MS = 30000; // re-poll every 60s
+const REFRESH_MS = 60000; // re-poll every 60s
 
 const map = L.map("map", { zoomControl: true }).setView([37.9, -122.05], 12);
 L.tileLayer(
@@ -60,6 +74,8 @@ L.tileLayer(
   }
 ).addTo(map);
 
+// optional place-name / road overlay on top of the satellite imagery, so
+// street context is still readable without losing the aerial view
 L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
   { maxZoom: 19, opacity: 0.9 }
@@ -72,7 +88,7 @@ const markersLayer = L.layerGroup().addTo(map);
 const overlayLayer = L.layerGroup();
 let overlayCircles = {}; // sensor_id -> array of L.circle
 let viewMode = "sensors";
- 
+
 function setViewMode(mode) {
   viewMode = mode;
   document.getElementById("view-sensors").classList.toggle("active", mode === "sensors");
@@ -85,73 +101,7 @@ function setViewMode(mode) {
     map.removeLayer(markersLayer);
   }
 }
-function drawOverlay(row) {
-  if (overlayCircles[row.sensor_id]) {
-    overlayCircles[row.sensor_id].forEach((c) => overlayLayer.removeLayer(c));
-  }
-  const cat = aqiCategory(row.aqi);
-  const color = resolveCssVar(cat.bg);
-  const rings = [
-    { radius: 6000, opacity: 0.06 },
-    { radius: 4200, opacity: 0.11 },
-    { radius: 2600, opacity: 0.17 },
-    { radius: 1300, opacity: 0.26 },
-  ];
-  overlayCircles[row.sensor_id] = rings.map((ring) =>
-    L.circle([row.latitude, row.longitude], {
-      radius: ring.radius,
-      fillColor: color,
-      fillOpacity: ring.opacity,
-      stroke: false,
-      interactive: false,
-    }).addTo(overlayLayer)
-  );
-}
-  
-function markerHtml(aqi) {
-  const cat = aqiCategory(aqi);
-  return `<div class="aqi-marker" style="background:${resolveCssVar(cat.bg)}; color:${resolveCssVar(cat.bg)}">
-            <span style="color:${cat.fg}">${aqi}</span>
-          </div>`;
-}
 
-function popupHtml(row) {
-  const cat = aqiCategory(row.aqi);
-  const stale = minutesAgo(row.created_at) > 30
-    ? `<div class="stale">last update ${minutesAgo(row.created_at)} min ago</div>` : "";
-  return `
-    <div class="popup">
-      <h3>${row.owner_label}</h3>
-      <span class="cat" style="background:${resolveCssVar(cat.bg)}">${cat.name}</span>
-      <dl>
-        <dt>Temp</dt><dd>${row.temperature.toFixed(1)} °F</dd>
-        <dt>PM2.5</dt><dd>${row.pm25.toFixed(1)} µg/m³</dd>
-        <dt>PM10</dt><dd>${row.pm10.toFixed(1)} µg/m³</dd>
-        <dt>Updated</dt><dd>${fmtTime(row.created_at)}</dd>
-      </dl>
-      ${stale}
-      <a class="see-more" href="sensor.html?id=${encodeURIComponent(row.sensor_id)}">See more &gt;&gt;</a>
-    </div>`;
-}
-
-const markersLayer = L.layerGroup().addTo(map);
-const overlayLayer = L.layerGroup();
-let overlayCircles = {}; // sensor_id -> array of L.circle
-let viewMode = "sensors";
- 
-function setViewMode(mode) {
-  viewMode = mode;
-  document.getElementById("view-sensors").classList.toggle("active", mode === "sensors");
-  document.getElementById("view-overlay").classList.toggle("active", mode === "overlay");
-  if (mode === "sensors") {
-    map.addLayer(markersLayer);
-    map.removeLayer(overlayLayer);
-  } else {
-    map.addLayer(overlayLayer);
-    map.removeLayer(markersLayer);
-  }
-}
- 
 // Draws a soft "glow" at a sensor's location using several stacked,
 // translucent circles (denser/smaller near the center, fainter/larger
 // toward the edge). This is a rough visual stand-in for regional air
@@ -179,6 +129,74 @@ function drawOverlay(row) {
       interactive: false,
     }).addTo(overlayLayer)
   );
+}
+
+function markerHtml(aqi) {
+  const cat = aqiCategory(aqi);
+  return `<div class="aqi-marker" style="background:${resolveCssVar(cat.bg)}; color:${resolveCssVar(cat.bg)}">
+            <span style="color:${cat.fg}">${aqi}</span>
+          </div>`;
+}
+
+function popupHtml(row) {
+  const cat = aqiCategory(row.aqi);
+  const stale = minutesAgo(row.created_at) > 30
+    ? `<div class="stale">last update ${minutesAgo(row.created_at)} min ago</div>` : "";
+  return `
+    <div class="popup">
+      <h3>${row.owner_label}</h3>
+      <span class="cat" style="background:${resolveCssVar(cat.bg)}">${cat.name}</span>
+      <dl>
+        <dt>Temp</dt><dd>${row.temperature.toFixed(1)} °F</dd>
+        <dt>PM2.5</dt><dd>${row.pm25.toFixed(1)} µg/m³</dd>
+        <dt>PM10</dt><dd>${row.pm10.toFixed(1)} µg/m³</dd>
+        <dt>Updated</dt><dd>${fmtTime(row.created_at)}</dd>
+      </dl>
+      ${stale}
+      <a class="see-more" href="sensor.html?id=${encodeURIComponent(row.sensor_id)}">See more &gt;&gt;</a>
+    </div>`;
+}
+
+async function loadSensors() {
+  const url = `${SUPABASE_URL}/rest/v1/latest_readings?select=*`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+  if (!res.ok) {
+    console.error("Failed to load sensors", res.status, await res.text());
+    return;
+  }
+  const rows = await res.json();
+
+  const bounds = [];
+  rows.forEach((row) => {
+    bounds.push([row.latitude, row.longitude]);
+    const icon = L.divIcon({
+      className: "",
+      html: markerHtml(row.aqi),
+      iconSize: [44, 44],
+      popupAnchor: [0, -18],
+    });
+
+    if (markers[row.sensor_id]) {
+      markers[row.sensor_id].setIcon(icon);
+      markers[row.sensor_id].setPopupContent(popupHtml(row));
+    } else {
+      const m = L.marker([row.latitude, row.longitude], { icon }).addTo(markersLayer);
+      m.bindPopup(popupHtml(row));
+      markers[row.sensor_id] = m;
+    }
+
+    drawOverlay(row);
+  });
+
+  if (firstLoad && bounds.length) {
+    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 14 });
+    firstLoad = false;
+  }
 }
 
 loadSensors();
