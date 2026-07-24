@@ -4,8 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Sensor detail</title>
-<link rel="icon" type="image/svg+xml" href="icon.svg" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <script>
+  // Applied before CSS loads so there's no flash of the wrong theme.
   (function () {
     var stored = null;
     try { stored = localStorage.getItem("theme"); } catch (e) {}
@@ -44,18 +45,13 @@
   <div class="now-row" id="now-row"></div>
 
   <div class="panel">
-    <h2>Temperature - last 24 hours</h2>
-    <canvas id="tempChart"></canvas>
-  </div>
-
-  <div class="panel">
-    <h2>Air quality - last 24 hours</h2>
+    <h2>Air quality — last 7 days</h2>
     <canvas id="aqiChart"></canvas>
   </div>
 
   <div class="panel">
-    <h2>PM10 and PM2.5 - last 24 hours</h2>
-    <canvas id="pm125Chart"></canvas>
+    <h2>Temperature — last 7 days</h2>
+    <canvas id="tempChart"></canvas>
   </div>
 </div>
 
@@ -67,7 +63,6 @@
 const params = new URLSearchParams(location.search);
 const sensorId = params.get("id");
 
-
 async function supaGet(path) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     headers: {
@@ -78,16 +73,16 @@ async function supaGet(path) {
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
   return res.json();
 }
- 
+
 function renderNowRow(latest, history) {
   const cat = aqiCategory(latest.aqi);
- 
+
   const aqiTrend = trendVsYesterday(history, "aqi", latest.aqi);
   const tempTrend = trendVsYesterday(history, "temperature", latest.temperature);
- 
+
   const aqiTrendHtml = aqiTrend ? trendHtml(aqiTrend.delta, "", "bad-up", 3) : "";
   const tempTrendHtml = tempTrend ? trendHtml(tempTrend.delta, "°F", "neutral", 1) : "";
- 
+
   document.getElementById("now-row").innerHTML = `
     <div class="now-card aqi">
       <div class="label">AQI</div>
@@ -108,7 +103,7 @@ function renderNowRow(latest, history) {
       <div class="value">${latest.pm10.toFixed(1)}</div>
     </div>`;
 }
- 
+
 function buildChart(ctx, datasets, yLabel) {
   return new Chart(ctx, {
     type: "line",
@@ -131,13 +126,13 @@ function buildChart(ctx, datasets, yLabel) {
     },
   });
 }
- 
+
 async function init() {
   if (!sensorId) {
     document.getElementById("owner-label").textContent = "No sensor selected";
     return;
   }
- 
+
   try {
     const [sensors, latestRows, history] = await Promise.all([
       supaGet(`sensors?id=eq.${encodeURIComponent(sensorId)}&select=owner_label`),
@@ -148,29 +143,29 @@ async function init() {
         `&order=created_at.asc&select=*`
       ),
     ]);
- 
+
     const ownerLabel = sensors[0]?.owner_label || "Unknown sensor";
     document.title = ownerLabel;
     document.getElementById("owner-label").textContent = ownerLabel;
- 
+
     if (latestRows[0]) {
       renderNowRow(latestRows[0], history);
       document.getElementById("updated-sub").textContent =
         `updated ${fmtTime(latestRows[0].created_at)} · ${minutesAgo(latestRows[0].created_at)} min ago`;
     }
- 
+
     if (!history.length) {
       document.getElementById("aqiChart").outerHTML = '<div class="empty-state">No readings in the last 7 days yet.</div>';
       document.getElementById("tempChart").outerHTML = '<div class="empty-state">No readings in the last 7 days yet.</div>';
       return;
     }
- 
+
     const points = (key) => history.map((r) => ({ x: r.created_at, y: r[key] }));
- 
+
     buildChart(document.getElementById("aqiChart"), [
       { label: "AQI", data: points("aqi"), borderColor: "#2f5db3", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
     ], "AQI");
- 
+
     buildChart(document.getElementById("tempChart"), [
       { label: "Temperature (°F)", data: points("temperature"), borderColor: "#7e0023", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
     ], "°F");
@@ -179,7 +174,7 @@ async function init() {
     document.getElementById("owner-label").textContent = "Couldn't load sensor data";
   }
 }
- 
+
 init();
 </script>
 </body>
