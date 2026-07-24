@@ -57,7 +57,7 @@ a { color: var(--accent); }
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 16px;
+  gap: 13px;
   padding: 18px 28px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
