@@ -57,7 +57,7 @@ a { color: var(--accent); }
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 13px;
+  gap: 16px;
   padding: 18px 28px;
   background: var(--panel);
   border-bottom: 1px solid var(--line);
@@ -79,8 +79,8 @@ a { color: var(--accent); }
 
 .brand-trace {
   display: block;
-  width: 27px;
-  height: 31px;
+  width: 35px;
+  height: 41px;
   flex: none;
 }
 
