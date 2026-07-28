@@ -351,3 +351,11 @@ a { color: var(--accent); }
   background: var(--accent);
   color: #ffffff;
 }
+.user-location-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #2f5db3;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 2px rgba(47, 93, 179, 0.35), 0 2px 6px rgba(0, 0, 0, 0.35);
+}
