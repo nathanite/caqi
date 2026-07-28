@@ -77,15 +77,50 @@ async function supaGet(path) {
   return res.json();
 }
 
-function renderNowRow(latest, history) {
+async function supaGetAll(path, pageSize = 1000) {
+  let all = [];
+  let from = 0;
+  while (true) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Range: `${from}-${from + pageSize - 1}`,
+      },
+    });
+    if (!res.ok && res.status !== 206) throw new Error(`${res.status}: ${await res.text()}`);
+    const rows = await res.json();
+    all = all.concat(rows);
+    if (rows.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+function aggregateDaily(rows) {
+  const byDay = {};
+  rows.forEach((r) => {
+    const d = new Date(r.created_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    (byDay[key] = byDay[key] || []).push(r);
+  });
+  return Object.keys(byDay).sort().map((key) => ({
+    created_at: new Date(`${key}T12:00:00`).toISOString(), // noon, for chart placement
+    aqi: medianOf(byDay[key].map((r) => r.aqi)),
+    temperature: medianOf(byDay[key].map((r) => r.temperature)),
+    pm25: medianOf(byDay[key].map((r) => r.pm25)),
+    pm10: medianOf(byDay[key].map((r) => r.pm10)),
+  }));
+}
+ 
+function renderNowRow(latest, trendWindow) {
   const cat = aqiCategory(latest.aqi);
-
-  const aqiTrend = trendVsYesterday(history, "aqi", latest.aqi);
-  const tempTrend = trendVsYesterday(history, "temperature", latest.temperature);
-
+ 
+  const aqiTrend = trendVsYesterday(trendWindow, "aqi", latest.aqi);
+  const tempTrend = trendVsYesterday(trendWindow, "temperature", latest.temperature);
+ 
   const aqiTrendHtml = aqiTrend ? trendHtml(aqiTrend.delta, "", "bad-up", 3) : "";
   const tempTrendHtml = tempTrend ? trendHtml(tempTrend.delta, "°F", "neutral", 1) : "";
-
+ 
   document.getElementById("now-row").innerHTML = `
     <div class="now-card aqi">
       <div class="label">AQI</div>
@@ -106,8 +141,8 @@ function renderNowRow(latest, history) {
       <div class="value">${latest.pm10.toFixed(1)}</div>
     </div>`;
 }
-
-function buildChart(ctx, datasets, yLabel) {
+ 
+function buildChart(ctx, datasets, yLabel, timeUnit) {
   return new Chart(ctx, {
     type: "line",
     data: { datasets },
@@ -117,7 +152,7 @@ function buildChart(ctx, datasets, yLabel) {
       scales: {
         x: {
           type: "time",
-          time: { unit: "hour" },
+          time: { unit: timeUnit },
           grid: { color: "#e4e8e4" },
         },
         y: {
@@ -129,60 +164,113 @@ function buildChart(ctx, datasets, yLabel) {
     },
   });
 }
-
+ 
+let aqiChartInstance = null;
+let tempChartInstance = null;
+let pmChartInstance = null;
+ 
+const RANGE_CONFIG = {
+  "24h":  { days: 1,  label: "last 24 hours",              aggregate: false, timeUnit: "hour" },
+  week:   { days: 7,  label: "last 7 days",                 aggregate: false, timeUnit: "day" },
+  month:  { days: 30, label: "last 30 days (daily median)", aggregate: true,  timeUnit: "day" },
+};
+ 
+async function loadChartData(range) {
+  const cfg = RANGE_CONFIG[range];
+  document.getElementById("aqi-panel-title").textContent = `Air quality — ${cfg.label}`;
+  document.getElementById("pm-panel-title").textContent = `PM2.5 / PM10 — ${cfg.label}`;
+  document.getElementById("temp-panel-title").textContent = `Temperature — ${cfg.label}`;
+ 
+  let rows;
+  try {
+    rows = await supaGetAll(
+      `readings?sensor_id=eq.${encodeURIComponent(sensorId)}` +
+      `&created_at=gte.${encodeURIComponent(new Date(Date.now() - cfg.days * 24 * 3600 * 1000).toISOString())}` +
+      `&order=created_at.asc&select=aqi,temperature,pm25,pm10,created_at`
+    );
+  } catch (err) {
+    console.error(err);
+    return;
+  }
+ 
+  const points = cfg.aggregate ? aggregateDaily(rows) : rows;
+ 
+  if (aqiChartInstance) aqiChartInstance.destroy();
+  if (tempChartInstance) tempChartInstance.destroy();
+  if (pmChartInstance) pmChartInstance.destroy();
+ 
+  const aqiCanvasHost = document.getElementById("aqiChart") || restoreCanvas("aqiChart");
+  const pmCanvasHost = document.getElementById("pmChart") || restoreCanvas("pmChart");
+  const tempCanvasHost = document.getElementById("tempChart") || restoreCanvas("tempChart");
+ 
+  if (!points.length) {
+    aqiCanvasHost.outerHTML = `<div class="empty-state" id="aqiChart-empty">No readings in the ${cfg.label} yet.</div>`;
+    pmCanvasHost.outerHTML = `<div class="empty-state" id="pmChart-empty">No readings in the ${cfg.label} yet.</div>`;
+    tempCanvasHost.outerHTML = `<div class="empty-state" id="tempChart-empty">No readings in the ${cfg.label} yet.</div>`;
+    return;
+  }
+ 
+  const toXY = (key) => points.map((r) => ({ x: r.created_at, y: r[key] }));
+ 
+  aqiChartInstance = buildChart(document.getElementById("aqiChart"), [
+    { label: "AQI", data: toXY("aqi"), borderColor: "#2f5db3", backgroundColor: "transparent", tension: 0.25, pointRadius: cfg.aggregate ? 2 : 0 },
+  ], "AQI", cfg.timeUnit);
+ 
+  pmChartInstance = buildChart(document.getElementById("pmChart"), [
+    { label: "PM2.5 (µg/m³)", data: toXY("pm25"), borderColor: "#059669", backgroundColor: "transparent", tension: 0.25, pointRadius: cfg.aggregate ? 2 : 0 },
+    { label: "PM10 (µg/m³)", data: toXY("pm10"), borderColor: "#ff7e00", backgroundColor: "transparent", tension: 0.25, pointRadius: cfg.aggregate ? 2 : 0 },
+  ], "µg/m³", cfg.timeUnit);
+ 
+  tempChartInstance = buildChart(document.getElementById("tempChart"), [
+    { label: "Temperature (°F)", data: toXY("temperature"), borderColor: "#7e0023", backgroundColor: "transparent", tension: 0.25, pointRadius: cfg.aggregate ? 2 : 0 },
+  ], "°F", cfg.timeUnit);
+}
+function restoreCanvas(id) {
+  const old = document.getElementById(`${id}-empty`);
+  const canvas = document.createElement("canvas");
+  canvas.id = id;
+  old.replaceWith(canvas);
+  return canvas;
+}
+ 
 async function init() {
   if (!sensorId) {
     document.getElementById("owner-label").textContent = "No sensor selected";
     return;
   }
-
+ 
   try {
-    const [sensors, latestRows, history] = await Promise.all([
+    // The now-row trend arrows always compare against ~24h ago,
+    // regardless of which range is selected in the chart dropdown --
+    // so they're loaded from their own small, fixed window rather than
+    // whatever the chart happens to be showing.
+    const [sensors, latestRows, trendWindow] = await Promise.all([
       supaGet(`sensors?id=eq.${encodeURIComponent(sensorId)}&select=owner_label`),
       supaGet(`latest_readings?sensor_id=eq.${encodeURIComponent(sensorId)}&select=*`),
       supaGet(
         `readings?sensor_id=eq.${encodeURIComponent(sensorId)}` +
-        `&created_at=gte.${encodeURIComponent(new Date(Date.now() - 24 * 3600 * 1000).toISOString())}` +
-        `&order=created_at.asc&select=*`
+        `&created_at=gte.${encodeURIComponent(new Date(Date.now() - 26 * 3600 * 1000).toISOString())}` +
+        `&order=created_at.asc&select=aqi,temperature,created_at`
       ),
     ]);
-
+ 
     const ownerLabel = sensors[0]?.owner_label || "Unknown sensor";
     document.title = ownerLabel;
     document.getElementById("owner-label").textContent = ownerLabel;
-
+ 
     if (latestRows[0]) {
-      renderNowRow(latestRows[0], history);
+      renderNowRow(latestRows[0], trendWindow);
       document.getElementById("updated-sub").textContent =
         `updated ${fmtTime(latestRows[0].created_at)} · ${minutesAgo(latestRows[0].created_at)} min ago`;
     }
-
-    if (!history.length) {
-      document.getElementById("aqiChart").outerHTML = '<div class="empty-state">No readings in the last 24 hours yet.</div>';
-      document.getElementById("tempChart").outerHTML = '<div class="empty-state">No readings in the last 24 hours yet.</div>';
-      document.getElementById("pm125Chart").outerHTML = '<div class="empty-state">No readings in the last 24 hours yet.</div>';
-      return;
-    }
-
-    const points = (key) => history.map((r) => ({ x: r.created_at, y: r[key] }));
-
-    buildChart(document.getElementById("aqiChart"), [
-      { label: "AQI", data: points("aqi"), borderColor: "#2f5db3", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 }
-    ], "AQI");
-
-    buildChart(document.getElementById("tempChart"), [
-      { label: "Temperature (°F)", data: points("temperature"), borderColor: "#7e0023", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 }
-    ], "°F");
-    buildChart(document.getElementById("pm125Chart"), [
-      { label: "PM2.5 (µg/m³)", data: points("pm25"), borderColor: "#059669", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 },
-      { label: "PM10 (µg/m³)", data: points("pm10"), borderColor: "#ff7e00", backgroundColor: "transparent", tension: 0.25, pointRadius: 0 }
-    ], "value");
+ 
+    await loadChartData(document.getElementById("range-select").value);
   } catch (err) {
     console.error(err);
     document.getElementById("owner-label").textContent = "Couldn't load sensor data";
   }
 }
-
+ 
 init();
 </script>
 </body>
