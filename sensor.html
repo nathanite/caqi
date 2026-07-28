@@ -48,7 +48,7 @@
     <select id="range-select" onchange="loadChartData(this.value)">
       <option value="24h">Last 24 Hours</option>
       <option value="week" selected>Last 7 Days</option>
-      <option value="month">Last 30 Days (daily median)</option>
+      <option value="month">Last 30 Days</option>
     </select>
   </div>
  
@@ -182,7 +182,7 @@ let pmChartInstance = null;
 const RANGE_CONFIG = {
   "24h":  { days: 1,  label: "last 24 hours",              aggregate: false, timeUnit: "hour" },
   week:   { days: 7,  label: "last 7 days",                 aggregate: false, timeUnit: "day" },
-  month:  { days: 30, label: "last 30 days (daily median)", aggregate: true,  timeUnit: "day" },
+  month:  { days: 30, label: "last 30 days", aggregate: true,  timeUnit: "day" },
 };
  
 async function loadChartData(range) {
