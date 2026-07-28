@@ -63,7 +63,7 @@
 <script src="config.js"></script>
 <script src="aqi-helpers.js"></script>
 <script>
-const REFRESH_MS = 60000; // re-poll every 60s
+const REFRESH_MS = 60000*5; // re-poll every 60s
 
 const map = L.map("map", { zoomControl: true }).setView([37.9, -122.05], 12);
 L.tileLayer(
@@ -140,7 +140,7 @@ function markerHtml(aqi) {
 
 function popupHtml(row) {
   const cat = aqiCategory(row.aqi);
-  const stale = minutesAgo(row.created_at) > 30
+  const stale = minutesAgo(row.created_at) > 90
     ? `<div class="stale">last update ${minutesAgo(row.created_at)} min ago</div>` : "";
   return `
     <div class="popup">
