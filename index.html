@@ -201,6 +201,53 @@ async function loadSensors() {
 
 loadSensors();
 setInterval(loadSensors, REFRESH_MS);
+let dotMarker = null;
+let accuracyCircle = null;
+ 
+function userLocation() {
+  if (!("geolocation" in navigator)) return;
+ 
+  navigator.geolocation.watchPosition(
+    (pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const latlng = [latitude, longitude];
+ 
+      if (!dotMarker) {
+        accuracyCircle = L.circle(latlng, {
+          radius: accuracy,
+          color: "#2f5db3",
+          weight: 1,
+          fillColor: "#2f5db3",
+          fillOpacity: 0.12,
+          interactive: false,
+        }).addTo(map);
+ 
+        dotMarker = L.marker(latlng, {
+          icon: L.divIcon({
+            className: "",
+            html: '<div class="user-location-dot"></div>',
+            iconSize: [20, 20],
+          }),
+          zIndexOffset: 1000,
+          interactive: false,
+        }).addTo(map);
+      } else {
+        dotMarker.setLatLng(latlng);
+        accuracyCircle.setLatLng(latlng);
+        accuracyCircle.setRadius(accuracy);
+      }
+    },
+    (err) => {
+      console.log("Location unavailable:", err.message);
+    },
+    { enableHighAccuracy: true, maximumAge: 15000 }
+  );
+}
+ 
+userLocation();
+
+
+  
 </script>
 </body>
 </html>
