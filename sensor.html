@@ -259,7 +259,7 @@ async function loadSummary() {
     const row = rows[0];
     document.getElementById("summary-text").textContent = row.summary;
     document.getElementById("summary-meta").textContent =
-      `Generated ${fmtTime(row.generated_at)} · updated every few hours, not on every visit`;
+      `Generated ${fmtTime(row.generated_at)}`;
     document.getElementById("summary-panel").style.display = "";
   } catch (err) {
     console.error("Failed to load summary:", err);
