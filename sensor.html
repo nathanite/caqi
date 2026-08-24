@@ -294,6 +294,7 @@ async function init() {
     }
  
     await loadChartData(document.getElementById("range-select").value);
+    loadSummary();
   } catch (err) {
     console.error(err);
     document.getElementById("owner-label").textContent = "Couldn't load sensor data";
