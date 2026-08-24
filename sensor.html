@@ -253,10 +253,6 @@ async function init() {
   }
  
   try {
-    // The now-row trend arrows always compare against ~24h ago,
-    // regardless of which range is selected in the chart dropdown --
-    // so they're loaded from their own small, fixed window rather than
-    // whatever the chart happens to be showing.
     const [sensors, latestRows, trendWindow] = await Promise.all([
       supaGet(`sensors?id=eq.${encodeURIComponent(sensorId)}&select=owner_label`),
       supaGet(`latest_readings?sensor_id=eq.${encodeURIComponent(sensorId)}&select=*`),
