@@ -6,15 +6,11 @@
 <title>Cali AQI</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <script>
-  // If someone lands directly on /index.html (typed URL, old bookmark),
-  // silently tidy the address bar to the clean root URL -- no reload,
-  // no redirect, just fixes what's displayed.
   if (location.pathname.endsWith("/index.html")) {
     history.replaceState(null, "", location.pathname.replace(/index\.html$/, "") + location.search + location.hash);
   }
 </script>
 <script>
-  // Applied before CSS loads so there's no flash of the wrong theme.
   (function () {
     var stored = null;
     try { stored = localStorage.getItem("theme"); } catch (e) {}
@@ -74,14 +70,12 @@ L.tileLayer(
   }
 ).addTo(map);
 
-// optional place-name / road overlay on top of the satellite imagery, so
-// street context is still readable without losing the aerial view
 L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
   { maxZoom: 19, opacity: 0.9 }
 ).addTo(map);
 
-let markers = {}; // sensor_id -> L.marker
+let markers = {}; 
 let firstLoad = true;
 
 const markersLayer = L.layerGroup().addTo(map);
@@ -102,12 +96,6 @@ function setViewMode(mode) {
   }
 }
 
-// Draws a soft "glow" at a sensor's location using several stacked,
-// translucent circles (denser/smaller near the center, fainter/larger
-// toward the edge). This is a rough visual stand-in for regional air
-// quality, not a scientific interpolation between sensors -- it shows
-// "near this sensor, conditions are roughly X" rather than a modeled
-// estimate for areas between sensors.
 function drawOverlay(row) {
   if (overlayCircles[row.sensor_id]) {
     overlayCircles[row.sensor_id].forEach((c) => overlayLayer.removeLayer(c));
