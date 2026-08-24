@@ -245,7 +245,21 @@ function restoreCanvas(id) {
   old.replaceWith(canvas);
   return canvas;
 }
- 
+
+async function loadSummary() {
+  try {
+    const rows = await supaGet(`sensor_summaries?sensor_id=eq.${encodeURIComponent(sensorId)}&select=*`);
+    if (!rows.length) return; 
+    const row = rows[0];
+    document.getElementById("summary-text").textContent = row.summary;
+    document.getElementById("summary-meta").textContent =
+      `Generated ${fmtTime(row.generated_at)} · updated every few hours, not on every visit`;
+    document.getElementById("summary-panel").style.display = "";
+  } catch (err) {
+    console.error("Failed to load summary:", err);
+  }
+}
+  
 async function init() {
   if (!sensorId) {
     document.getElementById("owner-label").textContent = "No sensor selected";
