@@ -359,3 +359,12 @@ a { color: var(--accent); }
   border: 3px solid #ffffff;
   box-shadow: 0 0 0 2px rgba(47, 93, 179, 0.35), 0 2px 6px rgba(0, 0, 0, 0.35);
 }
+.summary-text {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  margin: 0 0 10px;
+}
+.summary-meta {
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+}
